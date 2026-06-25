@@ -6,10 +6,10 @@ import { resolve } from 'path'
 export default defineConfig({
   plugins: [react()],
 
-  // ⚠️  Keep this as '/MayaVyuh/' for GitHub Pages deployment.
-  // For local dev (npm run dev) Vite handles it automatically.
-  // If you later deploy to a custom domain root, change to '/'.
-  base: '/MayaVyuh/',
+  // Use VITE_BASE env var to set the base path.
+  // On Vercel: set VITE_BASE=/ in environment variables.
+  // On GitHub Pages: keep default '/MayaVyuh/'
+  base: process.env.VITE_BASE || '/MayaVyuh/',
 
   resolve: {
     alias: {
