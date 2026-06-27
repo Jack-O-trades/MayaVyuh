@@ -108,9 +108,14 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
+    const { teamId, round } = req.body;
     const fileContent = req.file.buffer;
     const extension = req.file.originalname.split('.').pop().replace(/[^a-zA-Z0-9]/g, '');
-    const key = `submissions/temp/${uuidv4()}.${extension}`;
+    
+    // Dynamically organize the S3 bucket if we have team and round info, else fallback to temp
+    const key = (teamId && round) 
+      ? `submissions/${teamId}/${round}/${uuidv4()}.${extension}` 
+      : `submissions/temp/${uuidv4()}.${extension}`;
 
     const command = new PutObjectCommand({
       Bucket: process.env.AWS_S3_BUCKET_NAME,
