@@ -38,9 +38,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// OpenAI removed, using Hugging Face Inference API
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -50,13 +48,16 @@ const io = new Server(server, {
   }
 });
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('MongoDB Connected');
-    const PORT = process.env.PORT || 5000;
-    server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  })
-  .catch(err => console.log("MongoDB Connection Error:", err));
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+if (process.env.MONGO_URI) {
+  mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('MongoDB Connected'))
+    .catch(err => console.log("MongoDB Connection Error:", err));
+} else {
+  console.warn('WARNING: MONGO_URI is not set. Database features will not work.');
+}
 
 app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
@@ -128,7 +129,8 @@ app.delete('/api/admin/images/:id', async (req, res) => {
 app.post('/api/similarity', async (req, res) => {
   try {
     const { original_url, submitted_url } = req.body;
-    const response = await fetch('http://localhost:8000/api/similarity', {
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+    const response = await fetch(`${aiServiceUrl}/api/similarity`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ original_url, submitted_url })
@@ -149,23 +151,27 @@ app.post('/api/generate', async (req, res) => {
     const { prompt } = req.body;
     if (!prompt) return res.status(400).json({ error: "Prompt is required" });
     
-    if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here') {
-      const response = await openai.images.generate({
-        model: "dall-e-3",
-        prompt: prompt,
-        n: 1,
-        size: "1024x1024",
-      });
-      return res.json({ images: [response.data[0].url] });
-    }
-    
-    // Fallback since API key might be missing/invalid
-    const seed = Date.now();
-    const images = [`https://picsum.photos/seed/${seed}/1024/1024`];
-    res.json({ images });
+      console.log(`Generating image for prompt: "${prompt}" via Pollinations AI...`);
+      const seed = Math.floor(Math.random() * 1000000);
+      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?seed=${seed}&width=1024&height=1024&nologo=true&model=flux`;
+      
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`Generation API Error: ${response.status}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      
+      const filename = `${Date.now()}-gen.jpg`;
+      const filepath = path.join(uploadsDir, filename);
+      fs.writeFileSync(filepath, buffer);
+
+      return res.json({ images: [`/uploads/${filename}`] });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Image generation failed" });
+    console.error("Image generation error:", err);
+    res.status(500).json({ error: "Image generation failed: " + err.message });
   }
 });
 
