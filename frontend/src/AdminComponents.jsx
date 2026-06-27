@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Network, Database, MonitorPlay, BarChart3, Zap, Skull, Power, Play, Pause, Square, AlertTriangle, ShieldAlert, Cpu, Clock, Activity, RefreshCw } from "lucide-react";
 import { useSyncState, broadcastEvent } from "./useSync.js";
+import imageCompression from 'browser-image-compression';
 import gdgLogo from "./assets/gdg-logo.png";
 import bg1 from "./assets/bg-1.jpg";
 import bg2 from "./assets/bg-2.jpg";
@@ -599,19 +600,27 @@ const ImageVaultSection = () => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-    for (let i = 0; i < files.length; i++) {
-      if (files[i].size > MAX_SIZE) {
-        alert(`File "${files[i].name}" exceeds the 5MB size limit!`);
-        e.target.value = null;
-        return;
-      }
-    }
-
     setLoading(true);
     const formData = new FormData();
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+
     for (let i = 0; i < files.length; i++) {
-      formData.append("images", files[i]);
+      let fileToUpload = files[i];
+      if (fileToUpload.size > MAX_SIZE) {
+        try {
+          const options = {
+            maxSizeMB: 4.8,
+            maxWidthOrHeight: 2048,
+            useWebWorker: true
+          };
+          fileToUpload = await imageCompression(fileToUpload, options);
+        } catch (error) {
+          console.error("Compression error:", error);
+          alert(`Failed to compress ${fileToUpload.name}`);
+          continue; // Skip this file if compression fails
+        }
+      }
+      formData.append("images", fileToUpload);
     }
     try {
       await fetch("https://mayavyuh.onrender.com/api/admin/upload-image", { method: "POST", body: formData });
