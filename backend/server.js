@@ -38,9 +38,7 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// OpenAI removed, using Hugging Face Inference API
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -50,13 +48,16 @@ const io = new Server(server, {
   }
 });
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('MongoDB Connected');
-    const PORT = process.env.PORT || 5000;
-    server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  })
-  .catch(err => console.log("MongoDB Connection Error:", err));
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+if (process.env.MONGO_URI) {
+  mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('MongoDB Connected'))
+    .catch(err => console.log("MongoDB Connection Error:", err));
+} else {
+  console.warn('WARNING: MONGO_URI is not set. Database features will not work.');
+}
 
 app.post('/api/admin/upload-image', upload.array('images'), async (req, res) => {
   try {
